@@ -1,0 +1,10 @@
+sdkconfig.old
+sdkconfig
+.submodules_update_done
+build
+managed_components
+.vscode
+.cache
+esp-idf
+esp-idf-tools
+dependencies.lock
