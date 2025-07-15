@@ -16,7 +16,38 @@
 #define MIN_SPEED 0.1   // Every 10s
 #define INC_SPEED 0.05
 
-static char const TAG[] = "main";
+#define MAX_BRIGHTNESS 1.0
+#define MIN_BRIGHTNESS 0.1
+#define INC_BRIGHTNESS 0.1
+
+#define SETTINGS_SAVE_DELAY 1000000
+
+static uint32_t   effect_no = 0;
+static float      speed     = DEF_SPEED;
+static char const TAG[]     = "main";
+
+static void load_effect_settings(nvs_handle_t nvs_handle) {
+    uint32_t speed_proxy = UINT32_MAX, brightness_proxy = UINT32_MAX;
+    nvs_get_u32(nvs_handle, "effect_no", &effect_no);
+    if (effect_no >= effects_len) {
+        effect_no = 0;
+    }
+    nvs_get_u32(nvs_handle, "speed", &speed_proxy);
+    nvs_get_u32(nvs_handle, "brightness", &brightness_proxy);
+    if (speed_proxy != UINT32_MAX) {
+        speed = fminf(MAX_SPEED, speed_proxy * INC_SPEED + MIN_SPEED);
+    }
+    if (brightness_proxy != UINT32_MAX) {
+        brightness = fminf(MAX_BRIGHTNESS, brightness_proxy * INC_BRIGHTNESS + MIN_BRIGHTNESS);
+    }
+}
+
+static void store_effect_settings(nvs_handle_t nvs_handle) {
+    nvs_set_u32(nvs_handle, "effect_no", effect_no);
+    nvs_set_u32(nvs_handle, "speed", (speed - MIN_SPEED + 0.001) / INC_SPEED);
+    nvs_set_u32(nvs_handle, "brightness", (brightness - MIN_BRIGHTNESS + 0.001) / INC_BRIGHTNESS);
+    nvs_commit(nvs_handle);
+}
 
 void app_main() {
     esp_err_t nvs_res = nvs_flash_init();
@@ -25,9 +56,7 @@ void app_main() {
         nvs_res = nvs_flash_init();
     }
 
-    size_t effect_no = 0;
-    float  speed     = DEF_SPEED;
-    float  coeff     = 0;
+    float coeff = 0;
 
     nvs_handle_t nvs_handle;
     if (nvs_res != ESP_OK) {
@@ -36,9 +65,7 @@ void app_main() {
         nvs_res = nvs_open("bh24effect", NVS_READWRITE, &nvs_handle);
     }
     if (nvs_res == ESP_OK) {
-        nvs_get_u32(nvs_handle, "effect_no", (uint32_t*)&effect_no);
-        nvs_get_u32(nvs_handle, "speed", (uint32_t*)&speed);
-        nvs_get_u32(nvs_handle, "brightness", (uint32_t*)&brightness);
+        load_effect_settings(nvs_handle);
     }
 
     ESP_ERROR_CHECK(bsp_input_initialize());
@@ -52,8 +79,14 @@ void app_main() {
 
     bool do_cycle = true;
 
-    int64_t prev_time = esp_timer_get_time();
+    int64_t store_settings_when = INT64_MAX;
+    int64_t prev_time           = esp_timer_get_time();
     while (1) {
+        if (nvs_res == ESP_OK && esp_timer_get_time() > store_settings_when) {
+            store_settings_when = INT64_MAX;
+            store_effect_settings(nvs_handle);
+        }
+
         // Check for events.
         bsp_input_event_t event;
         if (xQueueReceive(event_queue, &event, 1) && event.type == INPUT_EVENT_TYPE_NAVIGATION) {
@@ -62,7 +95,8 @@ void app_main() {
                     do_cycle = true;
                 } else if (do_cycle) {
                     // If select is released without up/down presses in the mean time, go to next effect.
-                    effect_no = (effect_no + 1) % effects_len;
+                    effect_no           = (effect_no + 1) % effects_len;
+                    store_settings_when = esp_timer_get_time() + SETTINGS_SAVE_DELAY;
                 }
             } else if (event.args_navigation.state && event.args_navigation.key == BSP_INPUT_NAVIGATION_KEY_UP) {
                 bool select;
@@ -75,6 +109,7 @@ void app_main() {
                     // Increase speed.
                     speed = fminf(MAX_SPEED, speed + INC_SPEED);
                 }
+                store_settings_when = esp_timer_get_time() + SETTINGS_SAVE_DELAY;
             } else if (event.args_navigation.state && event.args_navigation.key == BSP_INPUT_NAVIGATION_KEY_DOWN) {
                 bool select;
                 bsp_input_read_navigation_key(BSP_INPUT_NAVIGATION_KEY_SELECT, &select);
@@ -86,6 +121,7 @@ void app_main() {
                     // Decrease speed.
                     speed = fmaxf(MIN_SPEED, speed - INC_SPEED);
                 }
+                store_settings_when = esp_timer_get_time() + SETTINGS_SAVE_DELAY;
             }
         }
 
