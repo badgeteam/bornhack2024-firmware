@@ -69,7 +69,6 @@ fullclean: clean
 	rm -f sdkconfig
 	rm -f sdkconfig.old
 	rm -f sdkconfig.ci
-	rm -f sdkconfig.defaults
 
 # Check if build environment is set up correctly
 .PHONY: checkbuildenv
