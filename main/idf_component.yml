@@ -1,0 +1,9 @@
+dependencies:
+  idf:
+    version: '>=5.4.0'
+  badgeteam/badge-bsp:
+    version: ^0.2.3
+  badgeteam/custom-certificates:
+    version: ^1.0.0
+  nicolaielectronics/wifi-manager:
+    version: ^0.1.1

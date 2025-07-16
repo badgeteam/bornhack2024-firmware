@@ -4,4 +4,18 @@ idf_component_register(
         effects.c
         flags.c
         color.c
+        wifi_ota.c
+    INCLUDE_DIRS
+        .
+    PRIV_REQUIRES
+        fatfs
+        nvs_flash
+        badge-bsp
+        wpa_supplicant
+        esp_https_ota
+        app_update
+        esp_bootloader_format
+        custom-certificates
+        wifi-manager
+        esp_timer
 )

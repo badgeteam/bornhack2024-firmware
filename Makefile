@@ -3,7 +3,7 @@ PORT ?= /dev/ttyACM0
 IDF_PATH ?= $(shell cat .IDF_PATH 2>/dev/null || echo `pwd`/esp-idf)
 IDF_TOOLS_PATH ?= $(shell cat .IDF_TOOLS_PATH 2>/dev/null || echo `pwd`/esp-idf-tools)
 IDF_BRANCH ?= master
-IDF_COMMIT ?= 05cf51dc74e52c39d6eb83a1df450ae37936cf55
+IDF_COMMIT ?= 323e94257d185e33d26a7903fac4b26fcd73ad18
 IDF_EXPORT_QUIET ?= 1
 IDF_GITHUB_ASSETS ?= dl.espressif.com/github_assets
 MAKEFLAGS += --silent
@@ -69,7 +69,6 @@ fullclean: clean
 	rm -f sdkconfig
 	rm -f sdkconfig.old
 	rm -f sdkconfig.ci
-	rm -f sdkconfig.defaults
 
 # Check if build environment is set up correctly
 .PHONY: checkbuildenv
