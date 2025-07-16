@@ -19,3 +19,5 @@ idf_component_register(
         wifi-manager
         esp_timer
 )
+
+fatfs_create_spiflash_image(locfd ../fat FLASH_IN_PROJECT)
