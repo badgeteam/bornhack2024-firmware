@@ -1,7 +1,10 @@
-
-# Required by the BSP
+# This file was generated using idf.py save-defconfig. It can be edited manually.
+# Espressif IoT Development Framework (ESP-IDF) 6.0.0 Project Minimal Configuration
+#
+CONFIG_IDF_TARGET="esp32c3"
 CONFIG_BOOTLOADER_CUSTOM_RESERVE_RTC=y
 CONFIG_BOOTLOADER_CUSTOM_RESERVE_RTC_SIZE=0x100
-
-# Select the correct BSP target
+CONFIG_ESPTOOLPY_FLASHMODE_QIO=y
+CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y
+CONFIG_PARTITION_TABLE_CUSTOM=y
 CONFIG_BSP_TARGET_BORNHACK_2024_POV=y
