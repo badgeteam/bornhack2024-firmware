@@ -21,7 +21,7 @@
 #define MIN_SPEED 0     // Stopped
 #define INC_SPEED 0.05
 
-#define OTA_BASE_URL "https://selfsigned.ota.tanmatsu.cloud/bornhack2024-"
+#define OTA_BASE_URL "https://selfsigned.ota.badge.team/bornhack2024-"
 
 #define MAX_BRIGHTNESS 1.0
 #define MIN_BRIGHTNESS 0.1
@@ -127,7 +127,10 @@ void app_main() {
         };
         wifi_settings_set(0, &settings);
 
-        ota_update(OTA_BASE_URL "stable.bin", firmware_update_callback);
+        bool do_unstable = false;
+        bsp_input_read_navigation_key(BSP_INPUT_NAVIGATION_KEY_DOWN, &do_unstable);
+
+        ota_update(do_unstable ? OTA_BASE_URL "staging.bin" : OTA_BASE_URL "stable.bin", firmware_update_callback);
         esp_restart();
     }
 
