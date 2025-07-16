@@ -18,4 +18,5 @@ idf_component_register(
         custom-certificates
         wifi-manager
         esp_timer
+        ndef
 )

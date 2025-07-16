@@ -12,6 +12,7 @@
 #include "bsp/led.h"
 #include "custom_certificates.h"
 #include "effects.h"
+#include "ndef.h"
 #include "wifi_connection.h"
 #include "wifi_ota.h"
 #include "wifi_settings.h"
