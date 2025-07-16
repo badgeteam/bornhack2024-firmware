@@ -3,57 +3,17 @@
 // SPDX-License-Identifer: MIT
 
 #include "effects.h"
+#include <esp_log.h>
 #include <math.h>
+#include <string.h>
 #include "bsp/led.h"
+#include "color.h"
+#include "flags.h"
 
 #define LED_COUNT 16
 
 // Brightness multiplier.
 float brightness = 1;
-
-// A uint8_t red, green, blue tuple.
-typedef struct {
-    uint8_t r, g, b;
-} rgb_t;
-
-// Convert float HSV into uint8_t RGB.
-static rgb_t f_hsv_to_rgb(float h, float s, float v) {
-    h = fmodf(h, 1);
-    float r, g, b;
-
-    int   i = (int)(h * 6.0f);
-    float f = h * 6.0f - i;
-    float p = v * (1.0f - s);
-    float q = v * (1.0f - f * s);
-    float t = v * (1.0f - (1.0f - f) * s);
-
-    // clang-format off
-    switch (i % 6) {
-        case 0: r = v; g = t; b = p; break;
-        case 1: r = q; g = v; b = p; break;
-        case 2: r = p; g = v; b = t; break;
-        case 3: r = p; g = q; b = v; break;
-        case 4: r = t; g = p; b = v; break;
-        case 5: r = v; g = p; b = q; break;
-        default: r = g = b = 0.0f; break; // unreachable
-    }
-    // clang-format on
-
-    rgb_t rgb;
-    rgb.r = (uint8_t)(r * 255.0f);
-    rgb.g = (uint8_t)(g * 255.0f);
-    rgb.b = (uint8_t)(b * 255.0f);
-    return rgb;
-}
-
-// Convert float RGB into uint8_t RGB.
-static rgb_t f_rgb(float r, float g, float b) {
-    rgb_t rgb;
-    rgb.r = (uint8_t)(r * 255.0f);
-    rgb.g = (uint8_t)(g * 255.0f);
-    rgb.b = (uint8_t)(b * 255.0f);
-    return rgb;
-}
 
 // A static buffer to put LED data into.
 static uint8_t led_data[3 * LED_COUNT];
@@ -99,11 +59,63 @@ static void effect_knight_rider(float coeff) {
     update_leds();
 }
 
+// Helper function for `project_flag` that projects a single color band.
+static void project_band(float start, float size, rgb_t col) {
+    // Normalize into pixel amounts.
+    start     *= LED_COUNT;
+    size      *= LED_COUNT;
+    float end  = start + size;
+
+    start = fmaxf(0, start);
+    end   = fminf(LED_COUNT, end);
+
+    if (start >= end) {
+        return;
+    }
+
+    int led0 = floorf(start);
+    int led1 = ceilf(end);
+
+    for (int led = led0; led <= led1; led++) {
+        float cov = fminf(end, led + 1) - fmaxf(start, led);
+        if (cov > 0) {
+            led_data[led * 3 + 0] += col.r * cov;
+            led_data[led * 3 + 1] += col.g * cov;
+            led_data[led * 3 + 2] += col.b * cov;
+        }
+    }
+}
+
+// Helper function for `effect_flags` that projects one flag onto (a portion of) the LEDs.
+static void project_flag(flag_t flag, float offset) {
+    float const band_size = 1.0f / flag.bands_len;
+    for (size_t i = 0; i < flag.bands_len; i++) {
+        project_band(offset + i * band_size, band_size, flag.bands[i]);
+    }
+}
+
+// An effect that scrolls through pride flags.
+static void effect_flags(float coeff) {
+    memset(led_data, 0, sizeof(led_data));
+    int flag0 = ((int)coeff) % flags_len;
+    int flag1 = (flag0 + 1) % flags_len;
+    coeff     = fminf(0, 3 - 4 * fmodf(coeff, 1));
+    project_flag(flags[flag0], coeff);
+    if (coeff) {
+        project_flag(flags[flag1], coeff + 1);
+    }
+    for (size_t i = 0; i < sizeof(led_data); i++) {
+        led_data[i] = led_data[i] * brightness;
+    }
+    update_leds();
+}
+
 // Table of all effects.
 effect_t const effects[] = {
     effect_hue_spectrum,
     effect_hue_single,
     effect_knight_rider,
+    effect_flags,
 };
 
 // Number of effects.

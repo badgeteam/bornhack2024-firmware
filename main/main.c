@@ -18,7 +18,7 @@
 
 #define MAX_SPEED 2.0   // Every 500ms
 #define DEF_SPEED 0.25  // Every 4s
-#define MIN_SPEED 0.1   // Every 10s
+#define MIN_SPEED 0     // Stopped
 #define INC_SPEED 0.05
 
 #define OTA_BASE_URL "https://selfsigned.ota.tanmatsu.cloud/bornhack2024-"
@@ -141,7 +141,7 @@ void app_main() {
 
         // Check for events.
         bsp_input_event_t event;
-        if (xQueueReceive(event_queue, &event, 1) && event.type == INPUT_EVENT_TYPE_NAVIGATION) {
+        if (xQueueReceive(event_queue, &event, pdMS_TO_TICKS(5)) && event.type == INPUT_EVENT_TYPE_NAVIGATION) {
             if (event.args_navigation.key == BSP_INPUT_NAVIGATION_KEY_SELECT) {
                 if (event.args_navigation.state) {
                     do_cycle = true;

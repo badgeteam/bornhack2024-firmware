@@ -2,6 +2,8 @@ idf_component_register(
     SRCS
         main.c
         effects.c
+        flags.c
+        color.c
         wifi_ota.c
     INCLUDE_DIRS
         .
