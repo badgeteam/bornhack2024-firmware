@@ -6,15 +6,22 @@
 #include <freertos/task.h>
 #include <math.h>
 #include <nvs_flash.h>
+#include <stdbool.h>
 #include "bsp/i2c.h"
 #include "bsp/input.h"
 #include "bsp/led.h"
+#include "custom_certificates.h"
 #include "effects.h"
+#include "wifi_connection.h"
+#include "wifi_ota.h"
+#include "wifi_settings.h"
 
 #define MAX_SPEED 2.0   // Every 500ms
 #define DEF_SPEED 0.25  // Every 4s
 #define MIN_SPEED 0.1   // Every 10s
 #define INC_SPEED 0.05
+
+#define OTA_BASE_URL "https://selfsigned.ota.tanmatsu.cloud/bornhack2024-"
 
 #define MAX_BRIGHTNESS 1.0
 #define MIN_BRIGHTNESS 0.1
@@ -49,6 +56,33 @@ static void store_effect_settings(nvs_handle_t nvs_handle) {
     nvs_commit(nvs_handle);
 }
 
+bool wifi_stack_get_initialized(void) {
+    return true;
+}
+
+static void firmware_update_callback(const char* status_text, uint8_t progress) {
+    printf("OTA status changed [%u%%]: %s\r\n", progress, status_text);
+    double  progress_leds            = (progress * 16.0f) / 100.0f;
+    double  progress_leds_integer    = 0;
+    double  progress_leds_fractional = modf(progress_leds, &progress_leds_integer);
+    uint8_t led_data[3 * 16]         = {0};
+    for (uint8_t led = 0; led < 16; led++) {
+        if (led < (uint8_t)(progress_leds_integer)) {
+            led_data[3 * led + 0] = 0;
+            led_data[3 * led + 1] = 64;
+            led_data[3 * led + 2] = 0;
+        } else {
+            led_data[3 * led + 0] = 64;
+            led_data[3 * led + 1] = 0;
+            led_data[3 * led + 2] = 0;
+        }
+    }
+    led_data[3 * (uint8_t)(progress_leds_integer) + 0] = 64 * (1.0f - progress_leds_fractional);
+    led_data[3 * (uint8_t)(progress_leds_integer) + 1] = 64 * (progress_leds_fractional);
+    led_data[3 * (uint8_t)(progress_leds_integer) + 2] = 16;
+    bsp_led_write(led_data, sizeof(led_data));
+}
+
 void app_main() {
     esp_err_t nvs_res = nvs_flash_init();
     if (nvs_res == ESP_ERR_NVS_NO_FREE_PAGES || nvs_res == ESP_ERR_NVS_NEW_VERSION_FOUND) {
@@ -79,8 +113,26 @@ void app_main() {
 
     bool do_cycle = true;
 
-    int64_t store_settings_when = INT64_MAX;
+    bool do_update = false;
+    bsp_input_read_navigation_key(BSP_INPUT_NAVIGATION_KEY_UP, &do_update);
+
+    ESP_ERROR_CHECK(initialize_custom_ca_store());
+
+    if (do_update) {
+        wifi_connection_init_stack();
+
+        wifi_settings_t settings = {
+            .ssid     = "bornhack-nat",
+            .authmode = WIFI_AUTH_OPEN,
+        };
+        wifi_settings_set(0, &settings);
+
+        ota_update(OTA_BASE_URL "stable.bin", firmware_update_callback);
+        esp_restart();
+    }
+
     int64_t prev_time           = esp_timer_get_time();
+    int64_t store_settings_when = INT64_MAX;
     while (1) {
         if (nvs_res == ESP_OK && esp_timer_get_time() > store_settings_when) {
             store_settings_when = INT64_MAX;
