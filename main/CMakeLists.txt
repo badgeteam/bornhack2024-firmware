@@ -20,3 +20,5 @@ idf_component_register(
         esp_timer
         ndef
 )
+
+fatfs_create_spiflash_image(locfd ../fat FLASH_IN_PROJECT)
