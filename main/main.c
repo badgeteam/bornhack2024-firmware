@@ -104,7 +104,7 @@ void app_main() {
 
     ESP_ERROR_CHECK(bsp_input_initialize());
     ESP_ERROR_CHECK(bsp_led_initialize());
-    ESP_ERROR_CHECK(bsp_i2c_primary_bus_initialize());
+    bsp_i2c_primary_bus_initialize();
 
     QueueHandle_t event_queue;
     ESP_ERROR_CHECK(bsp_input_get_queue(&event_queue));
