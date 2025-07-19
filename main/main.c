@@ -1,17 +1,16 @@
-
-#include <driver/gpio.h>
-#include <esp_log.h>
-#include <esp_timer.h>
-#include <freertos/FreeRTOS.h>
-#include <freertos/task.h>
 #include <math.h>
-#include <nvs_flash.h>
 #include <stdbool.h>
+#include "bsp/device.h"
 #include "bsp/i2c.h"
 #include "bsp/input.h"
 #include "bsp/led.h"
 #include "custom_certificates.h"
 #include "effects.h"
+#include "esp_log.h"
+#include "esp_timer.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "nvs_flash.h"
 #include "wifi_connection.h"
 #include "wifi_ota.h"
 #include "wifi_settings.h"
@@ -102,9 +101,12 @@ void app_main() {
         load_effect_settings(nvs_handle);
     }
 
-    ESP_ERROR_CHECK(bsp_input_initialize());
-    ESP_ERROR_CHECK(bsp_led_initialize());
-    bsp_i2c_primary_bus_initialize();
+    ESP_ERROR_CHECK(bsp_device_initialize());
+
+    if (bsp_device_get_initialized_without_coprocessor()) {
+        ESP_LOGE(TAG, "Coprocessor not initialized");
+        return;
+    }
 
     QueueHandle_t event_queue;
     ESP_ERROR_CHECK(bsp_input_get_queue(&event_queue));
@@ -113,10 +115,11 @@ void app_main() {
 
     bool do_cycle = true;
 
+    ESP_ERROR_CHECK(initialize_custom_ca_store());
+
+#ifdef CONFIG_BSP_TARGET_BORNHACK_2024_POV
     bool do_update = false;
     bsp_input_read_navigation_key(BSP_INPUT_NAVIGATION_KEY_UP, &do_update);
-
-    ESP_ERROR_CHECK(initialize_custom_ca_store());
 
     if (do_update) {
         wifi_connection_init_stack();
@@ -133,6 +136,7 @@ void app_main() {
         ota_update(do_unstable ? OTA_BASE_URL "staging.bin" : OTA_BASE_URL "stable.bin", firmware_update_callback);
         esp_restart();
     }
+#endif
 
     int64_t prev_time           = esp_timer_get_time();
     int64_t store_settings_when = INT64_MAX;
@@ -144,37 +148,54 @@ void app_main() {
 
         // Check for events.
         bsp_input_event_t event;
-        if (xQueueReceive(event_queue, &event, pdMS_TO_TICKS(5)) && event.type == INPUT_EVENT_TYPE_NAVIGATION) {
-            if (event.args_navigation.key == BSP_INPUT_NAVIGATION_KEY_SELECT) {
+        if (xQueueReceive(event_queue, &event, pdMS_TO_TICKS(portTICK_PERIOD_MS * 2)) &&
+            event.type == INPUT_EVENT_TYPE_NAVIGATION) {
+            if (event.args_navigation.key == BSP_INPUT_NAVIGATION_KEY_SELECT ||
+                event.args_navigation.key == BSP_INPUT_NAVIGATION_KEY_RETURN) {
                 if (event.args_navigation.state) {
                     do_cycle = true;
                 } else if (do_cycle) {
                     // If select is released without up/down presses in the mean time, go to next effect.
                     effect_no           = (effect_no + 1) % effects_len;
                     store_settings_when = esp_timer_get_time() + SETTINGS_SAVE_DELAY;
+                    ESP_LOGI(TAG, "Effect changed to %u", effect_no);
                 }
-            } else if (event.args_navigation.state && event.args_navigation.key == BSP_INPUT_NAVIGATION_KEY_UP) {
+            } else if (event.args_navigation.state &&
+                       (event.args_navigation.key == BSP_INPUT_NAVIGATION_KEY_UP ||
+                        event.args_navigation.key == BSP_INPUT_NAVIGATION_KEY_VOLUME_UP)) {
                 bool select;
                 bsp_input_read_navigation_key(BSP_INPUT_NAVIGATION_KEY_SELECT, &select);
+                if (!select) {
+                    bsp_input_read_navigation_key(BSP_INPUT_NAVIGATION_KEY_RETURN, &select);
+                }
                 if (select) {
                     // Increase brightness.
                     brightness = fminf(1, brightness + 0.1);
                     do_cycle   = false;
+                    ESP_LOGI(TAG, "Brightness increased to %.1f", brightness);
                 } else {
                     // Increase speed.
                     speed = fminf(MAX_SPEED, speed + INC_SPEED);
+                    ESP_LOGI(TAG, "Speed increased to %.1f", speed);
                 }
                 store_settings_when = esp_timer_get_time() + SETTINGS_SAVE_DELAY;
-            } else if (event.args_navigation.state && event.args_navigation.key == BSP_INPUT_NAVIGATION_KEY_DOWN) {
+            } else if (event.args_navigation.state &&
+                       (event.args_navigation.key == BSP_INPUT_NAVIGATION_KEY_DOWN ||
+                        event.args_navigation.key == BSP_INPUT_NAVIGATION_KEY_VOLUME_DOWN)) {
                 bool select;
                 bsp_input_read_navigation_key(BSP_INPUT_NAVIGATION_KEY_SELECT, &select);
+                if (!select) {
+                    bsp_input_read_navigation_key(BSP_INPUT_NAVIGATION_KEY_RETURN, &select);
+                }
                 if (select) {
                     // Decrease brightness.
                     brightness = fmaxf(0.1, brightness - 0.1);
                     do_cycle   = false;
+                    ESP_LOGI(TAG, "Brightness decreased to %.1f", brightness);
                 } else {
                     // Decrease speed.
                     speed = fmaxf(MIN_SPEED, speed - INC_SPEED);
+                    ESP_LOGI(TAG, "Speed decreased to %.1f", speed);
                 }
                 store_settings_when = esp_timer_get_time() + SETTINGS_SAVE_DELAY;
             }
