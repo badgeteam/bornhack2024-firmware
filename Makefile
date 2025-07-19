@@ -3,13 +3,15 @@ PORT ?= /dev/ttyACM0
 IDF_PATH ?= $(shell cat .IDF_PATH 2>/dev/null || echo `pwd`/esp-idf)
 IDF_TOOLS_PATH ?= $(shell cat .IDF_TOOLS_PATH 2>/dev/null || echo `pwd`/esp-idf-tools)
 IDF_BRANCH ?= master
-IDF_COMMIT ?= 323e94257d185e33d26a7903fac4b26fcd73ad18
+IDF_COMMIT ?= aaebc374676621980878789c49d239232ea714c5
 IDF_EXPORT_QUIET ?= 1
 IDF_GITHUB_ASSETS ?= dl.espressif.com/github_assets
 MAKEFLAGS += --silent
-BUILD      ?= build
 
 SHELL := /usr/bin/env bash
+
+DEVICE ?= bornhack-2024 # Default target device
+BUILD ?= build/$(DEVICE)
 
 export IDF_TOOLS_PATH
 export IDF_GITHUB_ASSETS
@@ -55,7 +57,7 @@ refreshsdk: removesdk sdk
 
 .PHONY: menuconfig
 menuconfig:
-	source "$(IDF_PATH)/export.sh" && idf.py menuconfig
+	source "$(IDF_PATH)/export.sh" && idf.py menuconfig -DDEVICE=$(DEVICE)
 	
 # Cleaning
 
@@ -69,6 +71,7 @@ fullclean: clean
 	rm -f sdkconfig
 	rm -f sdkconfig.old
 	rm -f sdkconfig.ci
+	rm -f sdkconfig.defaults
 
 # Check if build environment is set up correctly
 .PHONY: checkbuildenv
@@ -80,7 +83,7 @@ checkbuildenv:
 
 .PHONY: build
 build: checkbuildenv submodules
-	source "$(IDF_PATH)/export.sh" >/dev/null && idf.py -B $(BUILD) build
+	source "$(IDF_PATH)/export.sh" >/dev/null && idf.py -B $(BUILD) build -DDEVICE=$(DEVICE)
 
 # Hardware
 
@@ -129,3 +132,12 @@ size-files:
 .PHONY: format
 format:
 	find main/ -iname '*.h' -o -iname '*.c' -o -iname '*.cpp' | xargs clang-format -i
+	
+# Build all targets
+.PHONY: buildall
+buildall:
+	$(MAKE) build DEVICE=tanmatsu
+	$(MAKE) build DEVICE=kami
+	$(MAKE) build DEVICE=mch2022
+	$(MAKE) build DEVICE=bornhack-2024
+	$(MAKE) build DEVICE=bornhack-2025
